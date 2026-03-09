@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import { MapPin, Calendar, IndianRupee } from "lucide-react"
+import { resolveUploadUrl } from "../api/axios"
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=900&q=80"
@@ -9,9 +10,7 @@ function getImageUrl(image) {
     return fallbackImage
   }
 
-  return image.startsWith("http")
-    ? image
-    : `${import.meta.env.VITE_API_URL.replace("/api", "")}/uploads/${image}`
+  return resolveUploadUrl(image)
 }
 
 const EventCard = ({ event }) => {

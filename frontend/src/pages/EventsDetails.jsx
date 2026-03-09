@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import api from "../api/axios"
+import api, { resolveUploadUrl } from "../api/axios"
 import { Calendar, MapPin, Ticket, Share2, Info } from "lucide-react"
 import GlassLayout from "../components/GlassLayout"
 import { isAuthenticated } from "../utils/auth"
@@ -13,9 +13,7 @@ function getImageUrl(image) {
     return fallbackImage
   }
 
-  return image.startsWith("http")
-    ? image
-    : `${import.meta.env.VITE_API_URL.replace("/api", "")}/uploads/${image}`
+  return resolveUploadUrl(image)
 }
 
 export default function EventDetails() {

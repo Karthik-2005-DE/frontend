@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import api from "../../api/axios"
+import api, { resolveUploadUrl } from "../../api/axios"
 import AdminSidebar from "../../components/AdminSidebar"
 
 const initialFormState = {
@@ -31,7 +31,7 @@ function getImageUrl(image) {
     return image
   }
 
-  return `${import.meta.env.VITE_API_URL.replace("/api", "")}/uploads/${image}`
+  return resolveUploadUrl(image)
 }
 
 function buildCreateEventFormData(form, imageFile) {
