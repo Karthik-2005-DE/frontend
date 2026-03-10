@@ -1,5 +1,6 @@
-import { useLocation, useNavigate, useParams } from "react-router-dom"
+﻿import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { useState } from "react"
+import { loadStripe } from "@stripe/stripe-js"
 import api from "../api/axios"
 import { clearAuthSession, isAuthenticated } from "../utils/auth"
 
@@ -23,6 +24,62 @@ const persistPaymentState = (id, value) => {
 
   window.sessionStorage.setItem(`payment:${id}`, JSON.stringify(value))
 }
+
+const STRIPE_SESSION_ID_PATTERN = /^cs_(?:test|live)_[A-Za-z0-9]+$/
+let stripePromise = null
+
+const getStripeClient = () => {
+  const publicKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY?.trim()
+
+  if (!publicKey) {
+    return null
+  }
+
+  if (!stripePromise) {
+    stripePromise = loadStripe(publicKey)
+  }
+
+  return stripePromise
+}
+
+const extractSessionId = (value) => {
+  if (typeof value !== "string") {
+    return ""
+  }
+
+  const trimmedValue = value.trim()
+  if (!trimmedValue) {
+    return ""
+  }
+
+  if (STRIPE_SESSION_ID_PATTERN.test(trimmedValue)) {
+    return trimmedValue
+  }
+
+  try {
+    const parsedUrl = new URL(trimmedValue)
+    const sessionIdFromQuery =
+      parsedUrl.searchParams.get("session_id") || parsedUrl.searchParams.get("sessionId")
+
+    if (sessionIdFromQuery && STRIPE_SESSION_ID_PATTERN.test(sessionIdFromQuery)) {
+      return sessionIdFromQuery
+    }
+
+    const sessionIdFromPath = parsedUrl.pathname.match(
+      /\/payment_pages\/(cs_(?:test|live)_[A-Za-z0-9]+)\//
+    )?.[1]
+
+    if (sessionIdFromPath && STRIPE_SESSION_ID_PATTERN.test(sessionIdFromPath)) {
+      return sessionIdFromPath
+    }
+  } catch {
+    return ""
+  }
+
+  return ""
+}
+
+const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value.trim())
 
 export default function Payment() {
   const { id } = useParams()
@@ -132,13 +189,48 @@ export default function Payment() {
         amount: payableAmount,
       })
 
+      const responsePayload = res?.data || {}
       const redirectUrl =
-        res?.data?.url ||
-        res?.data?.checkoutUrl ||
-        res?.data?.redirectUrl ||
-        res?.data?.sessionUrl
+        [
+          responsePayload?.url,
+          responsePayload?.checkoutUrl,
+          responsePayload?.redirectUrl,
+          responsePayload?.sessionUrl,
+        ].find((value) => typeof value === "string" && value.trim()) || ""
 
-      if (redirectUrl) {
+      const sessionId = [
+        responsePayload?.sessionId,
+        responsePayload?.id,
+        extractSessionId(redirectUrl),
+      ].find(
+        (value) => typeof value === "string" && STRIPE_SESSION_ID_PATTERN.test(value.trim())
+      )
+
+      if (sessionId) {
+        const stripeClient = await getStripeClient()
+
+        if (!stripeClient) {
+          throw new Error("Missing VITE_STRIPE_PUBLIC_KEY")
+        }
+
+        const redirectResult = await stripeClient.redirectToCheckout({
+          sessionId,
+        })
+
+        if (redirectResult?.error) {
+          throw redirectResult.error
+        }
+
+        return
+      }
+
+      if (redirectUrl.includes("/v1/payment_pages/")) {
+        throw new Error(
+          "Invalid Stripe redirect URL from server. Return checkout session URL or sessionId."
+        )
+      }
+
+      if (isHttpUrl(redirectUrl)) {
         window.location.assign(redirectUrl)
         return
       }
@@ -210,3 +302,4 @@ export default function Payment() {
     </div>
   )
 }
+
