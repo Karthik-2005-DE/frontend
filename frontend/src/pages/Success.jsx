@@ -1,21 +1,64 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
 import api from "../api/axios"
 
+const normalizeBookingPayload = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    return null
+  }
+
+  if (payload.booking && typeof payload.booking === "object") {
+    return payload.booking
+  }
+
+  return payload
+}
+
+const findBookingIdFromSession = () => {
+  if (typeof window === "undefined") {
+    return null
+  }
+
+  const paymentKeys = Object.keys(window.sessionStorage).filter((key) =>
+    key.startsWith("payment:")
+  )
+
+  for (let index = paymentKeys.length - 1; index >= 0; index -= 1) {
+    try {
+      const rawValue = window.sessionStorage.getItem(paymentKeys[index])
+      if (!rawValue) {
+        continue
+      }
+
+      const parsed = JSON.parse(rawValue)
+      if (parsed?.bookingId) {
+        return parsed.bookingId
+      }
+    } catch {
+      // Skip invalid session payload and continue searching.
+    }
+  }
+
+  return null
+}
+
 export default function Success() {
   const navigate = useNavigate()
   const location = useLocation()
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
 
-  const initialBooking = location.state?.booking || null
+  const initialBooking = normalizeBookingPayload(location.state?.booking)
   const [booking, setBooking] = useState(initialBooking)
   const [loading, setLoading] = useState(!initialBooking)
   const [error, setError] = useState("")
 
   const bookingId =
-    location.state?.booking?._id ||
+    initialBooking?._id ||
     location.state?.bookingId ||
-    new URLSearchParams(location.search).get("bookingId")
+    searchParams.get("bookingId") ||
+    searchParams.get("booking_id") ||
+    findBookingIdFromSession()
 
   useEffect(() => {
     if (initialBooking) {
@@ -34,7 +77,13 @@ export default function Success() {
       try {
         setLoading(true)
         const res = await api.get(`/bookings/${bookingId}`)
-        setBooking(res.data)
+        const bookingPayload = normalizeBookingPayload(res.data)
+
+        if (!bookingPayload?._id) {
+          throw new Error("Invalid booking payload")
+        }
+
+        setBooking(bookingPayload)
         setError("")
       } catch (err) {
         console.log("Booking fetch failed:", err)
