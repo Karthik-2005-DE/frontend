@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { BadgeCheck, CalendarDays, MapPin, Receipt, Sparkles, Ticket } from "lucide-react"
 import { QRCodeCanvas } from "qrcode.react"
-import api from "../api/axios"
+import api, { API_BASE_URL } from "../api/axios"
 
 const currencyFormatter = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
@@ -93,6 +93,11 @@ function findBookingIdFromSession() {
   return null
 }
 
+function getVerifyUrl(sessionId) {
+  const separator = API_BASE_URL.includes("?") ? "&" : "?"
+  return `${API_BASE_URL}/payments/verify${separator}session_id=${encodeURIComponent(sessionId)}`
+}
+
 export default function Success() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -103,6 +108,7 @@ export default function Success() {
   const [loading, setLoading] = useState(!initialBooking)
   const [error, setError] = useState("")
 
+  const sessionId = searchParams.get("session_id") || searchParams.get("sessionId")
   const bookingId =
     initialBooking?._id ||
     location.state?.bookingId ||
@@ -118,34 +124,39 @@ export default function Success() {
       return
     }
 
-    if (!bookingId) {
-      setError("Booking details could not be recovered from the payment redirect.")
-      setLoading(false)
+    if (bookingId) {
+      const fetchBooking = async () => {
+        try {
+          setLoading(true)
+          const res = await api.get(`/bookings/${bookingId}`)
+          const bookingPayload = normalizeBookingPayload(res.data)
+
+          if (!bookingPayload?._id) {
+            throw new Error("Invalid booking payload")
+          }
+
+          setBooking(bookingPayload)
+          setError("")
+        } catch (err) {
+          console.log("Booking fetch failed:", err)
+          setError(err?.response?.data?.message || "Booking not found")
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      fetchBooking()
       return
     }
 
-    const fetchBooking = async () => {
-      try {
-        setLoading(true)
-        const res = await api.get(`/bookings/${bookingId}`)
-        const bookingPayload = normalizeBookingPayload(res.data)
-
-        if (!bookingPayload?._id) {
-          throw new Error("Invalid booking payload")
-        }
-
-        setBooking(bookingPayload)
-        setError("")
-      } catch (err) {
-        console.log("Booking fetch failed:", err)
-        setError(err?.response?.data?.message || "Booking not found")
-      } finally {
-        setLoading(false)
-      }
+    if (sessionId && typeof window !== "undefined") {
+      window.location.replace(getVerifyUrl(sessionId))
+      return
     }
 
-    fetchBooking()
-  }, [bookingId, initialBooking])
+    setError("Booking details could not be recovered from the payment redirect.")
+    setLoading(false)
+  }, [bookingId, initialBooking, sessionId])
 
   if (loading) {
     return (

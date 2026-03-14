@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useParams } from "react-router-dom"
+﻿import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, CalendarDays, LockKeyhole, MapPin, Receipt, ShieldCheck, Ticket } from "lucide-react"
 import { useState } from "react"
 import api from "../api/axios"
@@ -308,7 +308,7 @@ export default function Payment() {
           </section>
 
           <aside className="rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_30px_80px_-50px_rgba(76,29,149,0.65)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
-            <div className="rounded-[1.75rem] bg-gradient-to-br from-violet-600 to-fuchsia-600 p-6 text-white shadow-xl">
+            <div className="rounded-[1.75rem] bg-gradient-to-br from-violet-600 text-white shadow-xl">
               <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/70">
                 Ready to pay
               </p>
