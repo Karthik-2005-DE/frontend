@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import api, { resolveUploadUrl } from "../api/axios"
 import { Calendar, MapPin, Ticket, Share2, Info } from "lucide-react"
-import GlassLayout from "../components/GlassLayout"
+
 import { isAuthenticated } from "../utils/auth"
 
 const fallbackImage =
@@ -71,7 +71,7 @@ export default function EventDetails() {
   const imageUrl = getImageUrl(event.image)
 
   return (
-    <GlassLayout>
+    
       <div className="mx-auto max-w-7xl px-6 py-10">
         <div className="relative h-[350px] overflow-hidden rounded-3xl bg-black">
           <img
@@ -149,6 +149,6 @@ export default function EventDetails() {
           </div>
         </div>
       </div>
-    </GlassLayout>
+    
   )
 }

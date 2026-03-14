@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import api, { resolveUploadUrl } from "../../api/axios"
 import AdminSidebar from "../../components/AdminSidebar"
 
@@ -121,7 +121,7 @@ export default function CreateEvent() {
 
     try {
       const payload = buildCreateEventFormData(form, imageFile)
-      await api.post("/events", payload)
+      await api.post("/admin/events", payload)
 
       setSuccess("Event created successfully.")
       resetForm()
@@ -292,3 +292,5 @@ export default function CreateEvent() {
     </div>
   )
 }
+
+

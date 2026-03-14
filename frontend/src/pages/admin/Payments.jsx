@@ -30,7 +30,7 @@ export default function Payments() {
   useEffect(() => {
     const fetchPayments = async () => {
       try {
-        const res = await api.get("/payments")
+        const res = await api.get("/admin/payments")
         setPayments(normalizePayments(res.data))
       } catch (err) {
         console.log(err)
@@ -78,7 +78,7 @@ export default function Payments() {
                       {payment.user?.name || payment.user?.email || "Unknown user"}
                     </td>
                     <td className="px-4 py-3">INR {Number(payment.amount ?? 0)}</td>
-                    <td className="px-4 py-3">{payment.status || "Pending"}</td>
+                    <td className="px-4 py-3">{payment.paymentStatus || payment.status || "Pending"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -89,3 +89,4 @@ export default function Payments() {
     </div>
   )
 }
+

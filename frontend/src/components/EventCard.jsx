@@ -19,13 +19,13 @@ const EventCard = ({ event }) => {
   return (
     <Link
       to={`/event/${event._id}`}
-      className="group block overflow-hidden rounded-2xl border border-pink-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:shadow-pink-500/10 dark:border-zinc-800 dark:bg-zinc-900"
+      className="block overflow-hidden rounded-2xl border border-pink-100 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
     >
       <div className="relative aspect-[3/4] overflow-hidden">
         <img
           src={imageUrl}
           alt={event.title}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          className="h-full w-full object-cover"
         />
 
         <div className="absolute left-3 top-3 rounded bg-primary px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
@@ -34,7 +34,7 @@ const EventCard = ({ event }) => {
       </div>
 
       <div className="p-4">
-        <h3 className="truncate text-lg font-bold text-black transition-colors group-hover:text-primary dark:text-white">
+        <h3 className="truncate text-lg font-bold text-black dark:text-white">
           {event.title}
         </h3>
 
@@ -51,12 +51,12 @@ const EventCard = ({ event }) => {
         </div>
 
         <div className="mt-4 flex items-center justify-between border-t border-pink-50 pt-4 dark:border-zinc-800">
-          <div className="flex items-center font-bold text-primary text-purple-700">
+          <div className="flex items-center font-bold text-purple-700">
             <IndianRupee size={16} />
             <span>{event.price}</span>
           </div>
 
-          <span className="text-xs font-semibold uppercase tracking-tighter text-primary text-purple-700 group-hover:underline">
+          <span className="text-xs font-semibold uppercase tracking-tighter text-purple-700">
             Book Now
           </span>
         </div>

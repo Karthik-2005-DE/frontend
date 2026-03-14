@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom"
+﻿import { Route, Routes } from "react-router-dom"
 
 import Navbar from "./components/Navbar"
 import ProtectedRouting from "./components/ProtectedRoute"
@@ -18,6 +18,7 @@ import Dashboard from "./pages/admin/Dashboard"
 import CreateEvent from "./pages/admin/CreateEvent"
 import ManageEvents from "./pages/admin/ManageEvents"
 import Payments from "./pages/admin/Payments"
+import Users from "./pages/admin/Users"
 
 export default function App() {
   return (
@@ -25,19 +26,54 @@ export default function App() {
       <Navbar />
 
       <Routes>
+
+        {/* PUBLIC ROUTES */}
         <Route path="/" element={<Home />} />
         <Route path="/events" element={<Events />} />
         <Route path="/event/:id" element={<EventDetails />} />
-
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/booking/:id" element={<Booking />} />
-        <Route path="/mybooking" element={<MyBooking />} />
-        <Route path="/payment/:id" element={<Payment />} />
+        {/* USER PROTECTED ROUTES */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRouting>
+              <Profile />
+            </ProtectedRouting>
+          }
+        />
+
+        <Route
+          path="/booking/:id"
+          element={
+            <ProtectedRouting>
+              <Booking />
+            </ProtectedRouting>
+          }
+        />
+
+        <Route
+          path="/mybooking"
+          element={
+            <ProtectedRouting>
+              <MyBooking />
+            </ProtectedRouting>
+          }
+        />
+
+        <Route
+          path="/payment/:id"
+          element={
+            <ProtectedRouting>
+              <Payment />
+            </ProtectedRouting>
+          }
+        />
+
         <Route path="/success" element={<Success />} />
 
+        {/* ADMIN ROUTES */}
         <Route
           path="/admin"
           element={
@@ -46,6 +82,7 @@ export default function App() {
             </ProtectedRouting>
           }
         />
+
         <Route
           path="/admin/create"
           element={
@@ -54,6 +91,7 @@ export default function App() {
             </ProtectedRouting>
           }
         />
+
         <Route
           path="/admin/manage"
           element={
@@ -62,6 +100,7 @@ export default function App() {
             </ProtectedRouting>
           }
         />
+
         <Route
           path="/admin/payments"
           element={
@@ -70,6 +109,16 @@ export default function App() {
             </ProtectedRouting>
           }
         />
+
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRouting requireAdmin>
+              <Users />
+            </ProtectedRouting>
+          }
+        />
+
       </Routes>
     </>
   )

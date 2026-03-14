@@ -1,5 +1,5 @@
 ﻿import { createElement } from "react"
-import { CreditCard, LayoutDashboard, ListChecks, PlusCircle } from "lucide-react"
+import { CreditCard, LayoutDashboard, ListChecks, PlusCircle, Users2 } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
 const adminLinks = [
@@ -22,6 +22,11 @@ const adminLinks = [
     to: "/admin/payments",
     label: "Payments",
     icon: CreditCard,
+  },
+  {
+    to: "/admin/users",
+    label: "Users",
+    icon: Users2,
   },
 ]
 
@@ -65,4 +70,3 @@ export default function AdminSidebar() {
     </aside>
   )
 }
-

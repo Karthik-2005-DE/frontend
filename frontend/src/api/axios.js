@@ -3,7 +3,7 @@ import { getAuthorizationToken } from "../utils/auth"
 
 const DEFAULT_API_BASE_URL = "/api"
 const rawApiBaseUrl = import.meta.env.VITE_API_URL?.trim() 
-export const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "") 
+export const API_BASE_URL = (rawApiBaseUrl || DEFAULT_API_BASE_URL).replace(/\/+$/, "") 
 export const API_ORIGIN = API_BASE_URL.endsWith("/api")
   ? API_BASE_URL.slice(0, -4)
   : API_BASE_URL

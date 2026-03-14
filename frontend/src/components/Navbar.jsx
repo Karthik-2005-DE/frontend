@@ -14,11 +14,11 @@ import {
 } from "lucide-react"
 
 import { useContext, useEffect, useState } from "react"
-import { ThemeContext } from "../context/theme-context"
+
 import { clearAuthSession, isAuthenticated, subscribeToAuthChanges } from "../utils/auth"
 
 export default function Navbar() {
-  const { dark, setDark } = useContext(ThemeContext)
+
 
   const navigate = useNavigate()
 
@@ -85,12 +85,7 @@ export default function Navbar() {
             </>
           )}
 
-          <button
-            onClick={() => setDark(!dark)}
-            className="rounded-full bg-purple-600 p-2 text-white"
-          >
-            {dark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+          
         </div>
 
         <button
@@ -141,10 +136,7 @@ export default function Navbar() {
             </>
           )}
 
-          <button onClick={() => setDark(!dark)} className="flex items-center gap-2">
-            {dark ? <Sun size={18} /> : <Moon size={18} />}
-            Toggle Theme
-          </button>
+        
         </div>
       )}
     </nav>

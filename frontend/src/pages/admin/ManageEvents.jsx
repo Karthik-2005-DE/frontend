@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import api, { resolveUploadUrl } from "../../api/axios"
 import AdminSidebar from "../../components/AdminSidebar"
 
@@ -217,7 +217,7 @@ export default function ManageEvents() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await api.get("/events")
+        const res = await api.get("/admin/events")
         setEvents(normalizeEvents(res.data))
       } catch (err) {
         console.log(err)
@@ -289,7 +289,7 @@ export default function ManageEvents() {
       setError("")
       setSuccess("")
 
-      const response = await api.patch(`/events/${id}`, formData)
+      const response = await api.patch(`/admin/events/${id}`, formData)
       const updatedEvent = normalizeUpdatedEvent(response?.data)
 
       setEvents((current) =>
@@ -324,7 +324,7 @@ export default function ManageEvents() {
       setDeletingId(id)
       setError("")
       setSuccess("")
-      await api.delete(`/events/${id}`)
+      await api.delete(`/admin/events/${id}`)
       setEvents((current) => current.filter((event) => getEventId(event) !== id))
 
       if (editingId === id) {
@@ -572,3 +572,4 @@ export default function ManageEvents() {
     </div>
   )
 }
+
