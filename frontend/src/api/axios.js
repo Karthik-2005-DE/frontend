@@ -1,9 +1,21 @@
-﻿import axios from "axios"
+import axios from "axios"
 import { getAuthorizationToken } from "../utils/auth"
 
-const DEFAULT_API_BASE_URL = "/api"
-const rawApiBaseUrl = import.meta.env.VITE_API_URL?.trim() 
-export const API_BASE_URL = (rawApiBaseUrl || DEFAULT_API_BASE_URL).replace(/\/+$/, "") 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"])
+const PRODUCTION_API_ORIGIN = "https://projectevent-3.onrender.com"
+
+function getDefaultApiBaseUrl() {
+  if (typeof window === "undefined") {
+    return "/api"
+  }
+
+  return LOCAL_HOSTS.has(window.location.hostname)
+    ? "/api"
+    : `${PRODUCTION_API_ORIGIN}/api`
+}
+
+const rawApiBaseUrl = import.meta.env.VITE_API_URL?.trim()
+export const API_BASE_URL = (rawApiBaseUrl || getDefaultApiBaseUrl()).replace(/\/+$/, "")
 export const API_ORIGIN = API_BASE_URL.endsWith("/api")
   ? API_BASE_URL.slice(0, -4)
   : API_BASE_URL
