@@ -1,4 +1,4 @@
-﻿import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import {
   Home,
   Calendar,
@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react"
 
-import { useContext, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
 import { clearAuthSession, isAuthenticated, subscribeToAuthChanges } from "../utils/auth"
 

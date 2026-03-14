@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
+import { CalendarDays, MapPin, PencilLine, Ticket, Trash2 } from "lucide-react"
 import api, { resolveUploadUrl } from "../../api/axios"
 import AdminSidebar from "../../components/AdminSidebar"
 
@@ -12,6 +13,14 @@ const initialEditForm = {
   totalTickets: "",
   availableTickets: "",
   imageUrl: "",
+}
+
+const currencyFormatter = new Intl.NumberFormat("en-IN", {
+  maximumFractionDigits: 0,
+})
+
+function formatCurrency(value) {
+  return `INR ${currencyFormatter.format(Number(value) || 0)}`
 }
 
 function normalizeEvents(payload) {
@@ -49,7 +58,11 @@ function formatDateForInput(value) {
     return ""
   }
 
-  return parsedDate.toISOString().split("T")[0]
+  const year = parsedDate.getFullYear()
+  const month = String(parsedDate.getMonth() + 1).padStart(2, "0")
+  const day = String(parsedDate.getDate()).padStart(2, "0")
+
+  return `${year}-${month}-${day}`
 }
 
 function formatDateForDisplay(value) {
@@ -63,7 +76,11 @@ function formatDateForDisplay(value) {
     return value
   }
 
-  return parsedDate.toLocaleDateString()
+  return parsedDate.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
 }
 
 function getImageUrl(image) {
@@ -92,8 +109,7 @@ function getEditFormState(event) {
     price: event?.price === 0 ? "0" : String(event?.price || ""),
     category: event?.category || "",
     description: event?.description || "",
-    totalTickets:
-      event?.totalTickets === 0 ? "0" : String(event?.totalTickets ?? ""),
+    totalTickets: event?.totalTickets === 0 ? "0" : String(event?.totalTickets ?? ""),
     availableTickets:
       event?.availableTickets === 0 ? "0" : String(event?.availableTickets ?? ""),
     imageUrl: event?.image || "",
@@ -136,7 +152,13 @@ function parseWholeNumber(value, label) {
 }
 
 function buildEventFormData(form, currentEvent, imageFile) {
+  const title = form.title.trim()
+  const location = form.location.trim()
   const price = Number(form.price)
+
+  if (!title || !location || !form.date) {
+    throw new Error("Add the event title, venue, and date before saving.")
+  }
 
   if (Number.isNaN(price) || price < 0) {
     throw new Error("Enter a valid event price.")
@@ -153,8 +175,8 @@ function buildEventFormData(form, currentEvent, imageFile) {
   }
 
   const formData = new FormData()
-  formData.append("title", form.title.trim())
-  formData.append("location", form.location.trim())
+  formData.append("title", title)
+  formData.append("location", location)
   formData.append("date", form.date)
   formData.append("price", String(price))
 
@@ -221,7 +243,7 @@ export default function ManageEvents() {
         setEvents(normalizeEvents(res.data))
       } catch (err) {
         console.log(err)
-        setError("Unable to load events.")
+        setError(err.response?.data?.message || err.message || "Unable to load events.")
       } finally {
         setLoading(false)
       }
@@ -330,58 +352,159 @@ export default function ManageEvents() {
       if (editingId === id) {
         resetEditingState()
       }
+
+      setSuccess("Event deleted successfully.")
     } catch (err) {
       console.log(err)
-      setError("Unable to delete the selected event.")
+      setError(err.response?.data?.message || "Unable to delete the selected event.")
     } finally {
       setDeletingId("")
     }
   }
 
+  const totalInventory = events.reduce((sum, event) => sum + Number(event.totalTickets ?? 0), 0)
+  const availableInventory = events.reduce((sum, event) => sum + Number(event.availableTickets ?? 0), 0)
+  const soldInventory = Math.max(0, totalInventory - availableInventory)
+  const nextEvent = [...events]
+    .filter((event) => new Date(event.date).getTime() >= Date.now())
+    .sort((left, right) => new Date(left.date) - new Date(right.date))[0]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 to-white dark:from-black dark:to-purple-900 md:flex">
+    <div className="min-h-screen bg-gradient-to-br from-[#f6f1ff] via-white to-[#eef8ff] dark:from-[#12091c] dark:via-[#140c22] dark:to-[#08131d] md:flex">
       <AdminSidebar />
 
       <div className="flex-1 p-6 md:p-10">
-        <h1 className="mb-2 text-2xl font-bold text-purple-700 dark:text-purple-300">
-          Manage Events
-        </h1>
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_30px_80px_-50px_rgba(76,29,149,0.65)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(56,189,248,0.14),transparent_36%)]" />
 
-        <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
-          Edit event details, ticket counts, and images without leaving the list.
-        </p>
+          <div className="relative grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-200">
+                <PencilLine size={16} />
+                Event control room
+              </div>
+
+              <h1 className="mt-5 text-3xl font-black tracking-tight text-zinc-950 dark:text-white md:text-5xl">
+                Edit live events without losing the bigger picture.
+              </h1>
+
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-600 dark:text-zinc-300 md:text-base">
+                Update pricing, copy, inventory, and visuals directly from the event cards while
+                keeping a clear view of overall capacity.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-1 xl:gap-3">
+              <div className="rounded-[1.5rem] border border-white/70 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center gap-3 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                  <CalendarDays size={18} className="text-violet-500" />
+                  Live events
+                </div>
+                <p className="mt-4 text-lg font-bold text-zinc-950 dark:text-white">{events.length}</p>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-white/70 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center gap-3 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                  <Ticket size={18} className="text-emerald-500" />
+                  Tickets left
+                </div>
+                <p className="mt-4 text-lg font-bold text-zinc-950 dark:text-white">{availableInventory}</p>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-white/70 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center gap-3 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                  <MapPin size={18} className="text-cyan-500" />
+                  Next event
+                </div>
+                <p className="mt-4 text-lg font-bold text-zinc-950 dark:text-white">
+                  {nextEvent ? formatDateForDisplay(nextEvent.date) : "No upcoming date"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {error && (
-          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
+          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
             {success}
           </div>
         )}
 
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[1.5rem] border border-white/70 bg-white/85 p-5 backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-500 dark:text-violet-300">
+              Inventory
+            </p>
+            <p className="mt-3 text-2xl font-black text-zinc-950 dark:text-white">{totalInventory}</p>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-white/70 bg-white/85 p-5 backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-500 dark:text-violet-300">
+              Sold
+            </p>
+            <p className="mt-3 text-2xl font-black text-zinc-950 dark:text-white">{soldInventory}</p>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-white/70 bg-white/85 p-5 backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-500 dark:text-violet-300">
+              Available
+            </p>
+            <p className="mt-3 text-2xl font-black text-zinc-950 dark:text-white">{availableInventory}</p>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-white/70 bg-white/85 p-5 backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-500 dark:text-violet-300">
+              Average price
+            </p>
+            <p className="mt-3 text-2xl font-black text-zinc-950 dark:text-white">
+              {events.length
+                ? formatCurrency(
+                    events.reduce((sum, event) => sum + Number(event.price ?? 0), 0) / events.length
+                  )
+                : formatCurrency(0)}
+            </p>
+          </div>
+        </div>
+
         {loading ? (
-          <p className="text-gray-500 dark:text-gray-300">Loading events...</p>
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            {[1, 2, 3, 4].map((item) => (
+              <div
+                key={item}
+                className="h-96 animate-pulse rounded-[2rem] border border-white/70 bg-white/80 dark:border-white/10 dark:bg-zinc-950/70"
+              />
+            ))}
+          </div>
         ) : events.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-300">No events found.</p>
+          <div className="mt-8 rounded-[2rem] border border-white/70 bg-white/90 p-10 text-center shadow-[0_30px_80px_-50px_rgba(76,29,149,0.65)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+            <h2 className="text-2xl font-black tracking-tight text-zinc-950 dark:text-white">
+              No events found.
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Create an event first, then return here to refine it over time.
+            </p>
+          </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
             {events.map((event) => {
               const eventId = getEventId(event)
               const isEditing = editingId === eventId
               const previewImage = isEditing
-                ? imagePreviewUrl || getImageUrl(editForm.imageUrl)
+                ? imagePreviewUrl || getImageUrl(editForm.imageUrl) || getImageUrl(event.image)
                 : getImageUrl(event.image)
 
               return (
-                <div
+                <article
                   key={eventId}
-                  className="overflow-hidden rounded-3xl bg-white/85 shadow-lg ring-1 ring-purple-100 backdrop-blur dark:bg-zinc-900/85 dark:ring-zinc-800"
+                  className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-[0_30px_80px_-50px_rgba(76,29,149,0.65)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70"
                 >
-                  <div className="relative h-56 bg-gradient-to-br from-purple-200 via-fuchsia-100 to-white dark:from-purple-950 dark:via-zinc-900 dark:to-zinc-950">
+                  <div className="relative h-60 bg-gradient-to-br from-violet-200 via-fuchsia-100 to-white dark:from-violet-950 dark:via-zinc-900 dark:to-zinc-950">
                     {previewImage ? (
                       <img
                         src={previewImage}
@@ -389,20 +512,22 @@ export default function ManageEvents() {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-full items-center justify-center text-sm font-semibold uppercase tracking-[0.3em] text-purple-500 dark:text-purple-300">
+                      <div className="flex h-full items-center justify-center text-sm font-semibold uppercase tracking-[0.3em] text-violet-500 dark:text-violet-300">
                         No image
                       </div>
                     )}
 
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-5 py-4 text-white">
-                      <h2 className="text-xl font-bold">{event.title || "Untitled Event"}</h2>
-                      <p className="mt-1 text-sm text-white/80">
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-6 py-5 text-white">
+                      <h2 className="text-2xl font-black tracking-tight">
+                        {event.title || "Untitled event"}
+                      </h2>
+                      <p className="mt-2 text-sm text-white/80">
                         {event.location || "Location unavailable"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="p-5">
+                  <div className="p-6">
                     {isEditing ? (
                       <form
                         className="space-y-4"
@@ -414,7 +539,7 @@ export default function ManageEvents() {
                         <div className="grid gap-4 sm:grid-cols-2">
                           <input
                             placeholder="Event title"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.title}
                             onChange={updateField("title")}
                             required
@@ -422,7 +547,7 @@ export default function ManageEvents() {
 
                           <input
                             placeholder="Location"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.location}
                             onChange={updateField("location")}
                             required
@@ -430,7 +555,7 @@ export default function ManageEvents() {
 
                           <input
                             type="date"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.date}
                             onChange={updateField("date")}
                             required
@@ -441,7 +566,7 @@ export default function ManageEvents() {
                             min="0"
                             step="0.01"
                             placeholder="Price"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.price}
                             onChange={updateField("price")}
                             required
@@ -449,7 +574,7 @@ export default function ManageEvents() {
 
                           <input
                             placeholder="Category"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.category}
                             onChange={updateField("category")}
                           />
@@ -459,7 +584,7 @@ export default function ManageEvents() {
                             min="0"
                             step="1"
                             placeholder="Total tickets"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.totalTickets}
                             onChange={updateField("totalTickets")}
                           />
@@ -469,25 +594,25 @@ export default function ManageEvents() {
                             min="0"
                             step="1"
                             placeholder="Available tickets"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.availableTickets}
                             onChange={updateField("availableTickets")}
                           />
 
                           <input
                             placeholder="Image URL or uploaded filename"
-                            className="rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                            className="rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                             value={editForm.imageUrl}
                             onChange={updateField("imageUrl")}
                           />
                         </div>
 
-                        <label className="block rounded-2xl border border-dashed border-purple-200 bg-purple-50/70 px-4 py-3 text-sm text-purple-700 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-200">
+                        <label className="block rounded-[1.5rem] border border-dashed border-violet-200 bg-violet-50/80 px-4 py-4 text-sm font-medium text-violet-700 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-200">
                           Replace image
                           <input
                             type="file"
                             accept="image/*"
-                            className="mt-2 block w-full text-sm text-gray-600 dark:text-gray-300"
+                            className="mt-3 block w-full text-sm text-zinc-600 dark:text-zinc-300"
                             onChange={handleImageChange}
                           />
                         </label>
@@ -495,7 +620,7 @@ export default function ManageEvents() {
                         <textarea
                           rows="4"
                           placeholder="Description"
-                          className="w-full rounded-2xl border border-purple-100 px-4 py-3 outline-none focus:border-purple-400 dark:border-zinc-700 dark:bg-zinc-950"
+                          className="w-full rounded-2xl border border-violet-100 bg-white px-4 py-3 outline-none transition focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-950"
                           value={editForm.description}
                           onChange={updateField("description")}
                         />
@@ -504,15 +629,16 @@ export default function ManageEvents() {
                           <button
                             type="submit"
                             disabled={savingId === eventId}
-                            className="rounded-2xl bg-purple-600 px-4 py-2 font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-70"
+                            className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {savingId === eventId ? "Saving..." : "Save Changes"}
+                            <PencilLine size={16} />
+                            {savingId === eventId ? "Saving..." : "Save changes"}
                           </button>
 
                           <button
                             type="button"
                             onClick={resetEditingState}
-                            className="rounded-2xl border border-gray-300 px-4 py-2 font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-zinc-700 dark:text-gray-200 dark:hover:bg-zinc-800"
+                            className="rounded-2xl border border-zinc-300 px-4 py-3 font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
                           >
                             Cancel
                           </button>
@@ -520,50 +646,54 @@ export default function ManageEvents() {
                       </form>
                     ) : (
                       <>
-                        <div className="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-gray-300">
-                          <span className="rounded-full bg-purple-50 px-3 py-1 font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-200">
+                            <CalendarDays size={16} />
                             {formatDateForDisplay(event.date)}
                           </span>
 
-                          <span className="rounded-full bg-zinc-100 px-3 py-1 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                            INR {Number(event.price ?? 0)}
+                          <span className="rounded-full bg-zinc-100 px-3 py-2 text-sm font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                            {formatCurrency(event.price)}
                           </span>
 
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                            <Ticket size={16} />
                             {Number(event.availableTickets ?? 0)} / {Number(event.totalTickets ?? 0)} left
                           </span>
 
                           {event.category && (
-                            <span className="rounded-full bg-fuchsia-50 px-3 py-1 font-medium text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-200">
+                            <span className="rounded-full bg-fuchsia-50 px-3 py-2 text-sm font-semibold text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-200">
                               {event.category}
                             </span>
                           )}
                         </div>
 
-                        <p className="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                        <p className="mt-5 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
                           {event.description || "No description added for this event yet."}
                         </p>
 
-                        <div className="mt-5 flex flex-wrap gap-3">
+                        <div className="mt-6 flex flex-wrap gap-3">
                           <button
                             onClick={() => startEditing(event)}
-                            className="rounded-2xl bg-purple-600 px-4 py-2 font-semibold text-white transition hover:bg-purple-700"
+                            className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 font-semibold text-white transition hover:bg-violet-700"
                           >
-                            Edit Event
+                            <PencilLine size={16} />
+                            Edit event
                           </button>
 
                           <button
                             onClick={() => deleteEvent(eventId)}
                             disabled={deletingId === eventId}
-                            className="rounded-2xl bg-red-500 px-4 py-2 font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
+                            className="inline-flex items-center gap-2 rounded-2xl bg-red-500 px-4 py-3 font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                           >
+                            <Trash2 size={16} />
                             {deletingId === eventId ? "Deleting..." : "Delete"}
                           </button>
                         </div>
                       </>
                     )}
                   </div>
-                </div>
+                </article>
               )
             })}
           </div>
@@ -572,4 +702,3 @@ export default function ManageEvents() {
     </div>
   )
 }
-

@@ -1,55 +1,143 @@
-﻿import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { ArrowLeft, CalendarDays, LockKeyhole, MapPin, Receipt, ShieldCheck, Ticket } from "lucide-react"
 import { useState } from "react"
 import api from "../api/axios"
 import { clearAuthSession, isAuthenticated } from "../utils/auth"
 
-const getStoredPaymentState = (id) => {
-  if (typeof window === "undefined" || !id) {
-    return null
-  }
+const currencyFormatter = new Intl.NumberFormat("en-IN", {
+  maximumFractionDigits: 0,
+})
+
+const getStoredPayment = (id) => {
+  if (!id) return null
 
   try {
-    const rawValue = window.sessionStorage.getItem(`payments:${id}`)
-    return rawValue ? JSON.parse(rawValue) : null
+    const stored = sessionStorage.getItem(`payment:${id}`)
+    return stored ? JSON.parse(stored) : null
   } catch {
     return null
   }
 }
 
-const persistPaymentState = (id, value) => {
-  if (typeof window === "undefined" || !id || !value) {
-    return
-  }
-
-  window.sessionStorage.setItem(`payment:${id}`, JSON.stringify(value))
+const savePayment = (id, data) => {
+  if (!id || !data) return
+  sessionStorage.setItem(`payment:${id}`, JSON.stringify(data))
 }
 
-const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value.trim())
+const isValidUrl = (url) => typeof url === "string" && /^https?:\/\//i.test(url)
+
+function formatCurrency(value) {
+  return `INR ${currencyFormatter.format(Number(value) || 0)}`
+}
+
+function formatDate(value) {
+  if (!value) {
+    return "Date to be announced"
+  }
+
+  const parsedDate = new Date(value)
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value
+  }
+
+  return parsedDate.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+function normalizeCreatedBooking(payload) {
+  const bookingCandidates = [payload?.booking, payload?.data?.booking, payload?.data, payload]
+  const booking =
+    bookingCandidates.find(
+      (candidate) =>
+        candidate &&
+        typeof candidate === "object" &&
+        !Array.isArray(candidate) &&
+        (candidate._id || candidate.id || candidate.eventId)
+    ) || null
+
+  return {
+    bookingId:
+      booking?._id ||
+      booking?.id ||
+      payload?.bookingId ||
+      payload?.data?.bookingId ||
+      payload?._id ||
+      null,
+    totalAmount:
+      Number(
+        payload?.totalPrice ??
+          payload?.data?.totalPrice ??
+          booking?.totalPrice ??
+          booking?.total ??
+          payload?.amount ??
+          payload?.data?.amount ??
+          0
+      ) || 0,
+  }
+}
+
+function getCheckoutUrl(payload) {
+  return (
+    payload?.url ||
+    payload?.checkoutUrl ||
+    payload?.redirectUrl ||
+    payload?.data?.url ||
+    payload?.data?.checkoutUrl ||
+    payload?.data?.redirectUrl ||
+    ""
+  )
+}
 
 export default function Payment() {
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
 
-  const state = location.state || getStoredPaymentState(id) || {}
+  const restoredState = getStoredPayment(id) || {}
+  const state = {
+    ...restoredState,
+    ...(location.state || {}),
+  }
+
   const event = state.event || null
-  const normalizedSeats = Array.isArray(state.seats) ? state.seats : []
-  const fallbackAmount = (Number(event?.price) || 0) * normalizedSeats.length
-  const amount = Number(state.total) || fallbackAmount
+  const seats = Array.isArray(state.seats) ? state.seats : []
+
+  const fallbackAmount = (Number(event?.price) || 0) * seats.length
+  const totalAmount = Number(state.total) || fallbackAmount
+  const seatLabels = seats.map((seat) => `Seat ${seat}`)
 
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
   const [bookingId, setBookingId] = useState(state.bookingId || null)
 
-  if (!event || normalizedSeats.length === 0 || amount <= 0) {
+  if (!event || seats.length === 0 || totalAmount <= 0) {
     return (
-      <div className="text-center mt-20 space-y-4">
-        <p>Booking data missing or invalid.</p>
-        <button
-          onClick={() => navigate(id ? `/booking/${id}` : "/events")}
-          className="px-4 py-2 rounded-lg bg-purple-600 text-white"
-        >
-          Go Back
-        </button>
+      <div className="min-h-screen bg-gradient-to-br from-[#f6f1ff] via-white to-[#eef8ff] px-6 py-10 dark:from-[#12091c] dark:via-[#140c22] dark:to-[#08131d]">
+        <div className="mx-auto max-w-3xl rounded-[2rem] border border-white/70 bg-white/90 p-8 text-center shadow-[0_30px_80px_-50px_rgba(76,29,149,0.65)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300">
+            <Receipt size={28} />
+          </div>
+
+          <h1 className="mt-6 text-3xl font-black tracking-tight text-zinc-950 dark:text-white">
+            Booking details are missing.
+          </h1>
+
+          <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+            Go back to the event page, choose your seats again, and return here for checkout.
+          </p>
+
+          <button
+            onClick={() => navigate(id ? `/booking/${id}` : "/events")}
+            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700"
+          >
+            <ArrowLeft size={18} />
+            Go back
+          </button>
+        </div>
       </div>
     )
   }
@@ -57,171 +145,240 @@ export default function Payment() {
   const handlePayment = async () => {
     if (loading) return
 
-    if (!id) {
-      alert("Invalid event id")
-      return
-    }
-
-    const basePaymentState = {
-      event,
-      seats: normalizedSeats,
-      total: amount,
-      bookingId,
-      booking: state.booking || null,
-    }
-
     if (!isAuthenticated()) {
-      persistPaymentState(id, basePaymentState)
-      alert("Please login to continue payment")
+      savePayment(id, { event, seats, total: totalAmount })
       navigate("/login", { state: { redirectTo: `/payment/${id}` } })
       return
     }
 
     try {
       setLoading(true)
+      setError("")
 
-      let resolvedBookingId = bookingId
-      let payableAmount = amount
-      let bookingPayload =
-        state.booking ||
-        (resolvedBookingId
-          ? {
-              _id: resolvedBookingId,
-              event,
-              seats: normalizedSeats,
-              quantity: normalizedSeats.length,
-              totalPrice: payableAmount,
-              total: payableAmount,
-            }
-          : null)
+      let currentBookingId = bookingId
+      let payableAmount = totalAmount
 
-      if (!resolvedBookingId) {
+      if (!currentBookingId) {
         const bookingRes = await api.post("/bookings", {
           eventId: id,
-          quantity: normalizedSeats.length,
+          quantity: seats.length,
         })
 
-        resolvedBookingId = bookingRes?.data?._id || bookingRes?.data?.booking?._id
-        payableAmount = Number(bookingRes?.data?.totalPrice) || amount
+        const { bookingId: nextBookingId, totalAmount: nextTotalAmount } = normalizeCreatedBooking(
+          bookingRes?.data
+        )
 
-        if (!resolvedBookingId) {
-          throw new Error("Booking id missing in booking response")
+        currentBookingId = nextBookingId
+        payableAmount = nextTotalAmount || totalAmount
+
+        if (!currentBookingId) {
+          throw new Error("Booking creation failed")
         }
 
-        setBookingId(resolvedBookingId)
-
-        bookingPayload = {
-          ...bookingRes.data,
-          _id: resolvedBookingId,
-          event: bookingRes?.data?.event || event,
-          seats: normalizedSeats,
-          quantity: bookingRes?.data?.quantity || normalizedSeats.length,
-          totalPrice: Number(bookingRes?.data?.totalPrice) || payableAmount,
-          total: Number(bookingRes?.data?.totalPrice) || payableAmount,
-        }
+        setBookingId(currentBookingId)
       }
 
-      persistPaymentState(id, {
+      savePayment(id, {
         event,
-        seats: normalizedSeats,
+        seats,
         total: payableAmount,
-        bookingId: resolvedBookingId,
-        booking: bookingPayload,
+        bookingId: currentBookingId,
       })
 
       const res = await api.post("/payments/stripe-session", {
-        bookingId: resolvedBookingId,
+        bookingId: currentBookingId,
         amount: payableAmount,
       })
 
-      const responsePayload = res?.data || {}
-      const redirectUrl =
-        [
-          responsePayload?.url,
-          responsePayload?.checkoutUrl,
-          responsePayload?.redirectUrl,
-          responsePayload?.sessionUrl,
-        ].find((value) => typeof value === "string" && value.trim()) || ""
+      const redirectUrl = getCheckoutUrl(res?.data)
 
-      if (redirectUrl.includes("/v1/payment_pages/")) {
-        throw new Error(
-          "Invalid Stripe redirect URL from server. Return checkout session URL from Stripe."
-        )
+      if (!isValidUrl(redirectUrl)) {
+        throw new Error("Stripe checkout URL missing")
       }
 
-      if (isHttpUrl(redirectUrl)) {
-        window.location.href = redirectUrl
-        return
-      }
-
-      if (responsePayload?.sessionId || responsePayload?.id) {
-        throw new Error(
-          "Server returned sessionId without session.url. Return session.url and redirect with window.location.href."
-        )
-      }
-
-      throw new Error("Stripe checkout URL missing in server response")
+      window.location.assign(redirectUrl)
     } catch (err) {
       console.log("Payment failed:", err)
 
       if (err?.response?.status === 401) {
-        persistPaymentState(id, basePaymentState)
+        savePayment(id, { event, seats, total: totalAmount })
         clearAuthSession()
-        alert("Session expired. Please login again.")
         navigate("/login", { state: { redirectTo: `/payment/${id}` } })
         return
       }
 
-      alert(err?.response?.data?.message || err?.message || "Payment failed")
+      setError(err?.response?.data?.message || err.message || "Payment failed")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 to-white dark:from-black dark:to-purple-900 flex items-center justify-center px-6">
-      <div className="max-w-lg w-full backdrop-blur-lg bg-white/70 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-3xl p-8 shadow-xl">
-        <h1 className="text-3xl font-bold text-purple-700 dark:text-purple-400 mb-6 text-center">
-          Payment Summary
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-[#f6f1ff] via-white to-[#eef8ff] px-6 py-10 dark:from-[#12091c] dark:via-[#140c22] dark:to-[#08131d]">
+      <div className="mx-auto max-w-6xl">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <section className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_30px_80px_-50px_rgba(76,29,149,0.65)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70 md:p-10">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(56,189,248,0.14),transparent_36%)]" />
 
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold">{event.title || "Event"}</h2>
-          <p className="text-sm text-gray-500">Location: {event.location || "N/A"}</p>
-          <p className="text-sm text-gray-500">Date: {event.date || "N/A"}</p>
+            <div className="relative">
+              <button
+                onClick={() => navigate(`/booking/${id}`)}
+                className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/70 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-violet-300 hover:text-violet-700 dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-200 dark:hover:border-violet-900 dark:hover:text-violet-300"
+              >
+                <ArrowLeft size={16} />
+                Back to seats
+              </button>
+
+              <h1 className="mt-6 text-3xl font-black tracking-tight text-zinc-950 dark:text-white md:text-5xl">
+                Review your booking before payment.
+              </h1>
+
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-600 dark:text-zinc-300 md:text-base">
+                Your seats are ready. Confirm the summary below and continue to secure Stripe
+                checkout when everything looks right.
+              </p>
+
+              <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-white/70 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5">
+                  <div className="flex items-center gap-3 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                    <CalendarDays size={18} className="text-violet-500" />
+                    Event date
+                  </div>
+                  <p className="mt-4 text-lg font-bold text-zinc-950 dark:text-white">
+                    {formatDate(event.date)}
+                  </p>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-white/70 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5">
+                  <div className="flex items-center gap-3 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                    <MapPin size={18} className="text-cyan-500" />
+                    Location
+                  </div>
+                  <p className="mt-4 text-lg font-bold text-zinc-950 dark:text-white">
+                    {event.location || "Location to be announced"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 rounded-[1.75rem] bg-zinc-950 p-6 text-white shadow-2xl">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/60">
+                      Booking summary
+                    </p>
+                    <h2 className="mt-3 text-2xl font-black tracking-tight">
+                      {event.title || "Selected event"}
+                    </h2>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-right">
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/50">Amount due</p>
+                    <p className="mt-2 text-2xl font-black">{formatCurrency(totalAmount)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-white/50">Seats selected</p>
+                    <p className="mt-2 text-lg font-semibold">
+                      {seats.length} ticket{seats.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-white/50">Price per ticket</p>
+                    <p className="mt-2 text-lg font-semibold">
+                      {formatCurrency(Number(event.price) || 0)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {seatLabels.map((seat) => (
+                    <span
+                      key={seat}
+                      className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white/90"
+                    >
+                      {seat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside className="rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_30px_80px_-50px_rgba(76,29,149,0.65)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70">
+            <div className="rounded-[1.75rem] bg-gradient-to-br from-violet-600 to-fuchsia-600 p-6 text-white shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/70">
+                Ready to pay
+              </p>
+              <p className="mt-4 text-4xl font-black tracking-tight">{formatCurrency(totalAmount)}</p>
+              <p className="mt-3 text-sm leading-6 text-white/80">
+                Complete the payment in Stripe and you will be redirected back with your confirmed
+                ticket.
+              </p>
+            </div>
+
+            {error && (
+              <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white/80 px-4 py-4 dark:border-zinc-800 dark:bg-white/5">
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">Tickets</span>
+                <span className="font-semibold text-zinc-950 dark:text-white">{seats.length}</span>
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white/80 px-4 py-4 dark:border-zinc-800 dark:bg-white/5">
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">Subtotal</span>
+                <span className="font-semibold text-zinc-950 dark:text-white">
+                  {formatCurrency(totalAmount)}
+                </span>
+              </div>
+
+              {bookingId && (
+                <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white/80 px-4 py-4 dark:border-zinc-800 dark:bg-white/5">
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Draft booking</span>
+                  <span className="max-w-[11rem] truncate font-semibold text-zinc-950 dark:text-white">
+                    {bookingId}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/30">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 text-emerald-600 dark:text-emerald-300">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <p className="font-semibold text-emerald-800 dark:text-emerald-200">Secure checkout</p>
+                  <p className="mt-2 text-sm leading-6 text-emerald-700 dark:text-emerald-300">
+                    Stripe handles the payment step. Your selected seats remain tied to this booking
+                    while the payment is being completed.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handlePayment}
+              disabled={loading}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 px-5 py-4 font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-violet-600 dark:hover:bg-violet-700"
+            >
+              <LockKeyhole size={18} />
+              {loading ? "Redirecting to Stripe..." : "Continue to payment"}
+            </button>
+
+            <p className="mt-4 flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <Ticket size={16} />
+              Seats are confirmed based on this order summary.
+            </p>
+          </aside>
         </div>
-
-        <div className="mb-4">
-          <p className="font-semibold">Seats Selected</p>
-
-          <div className="flex flex-wrap gap-2 mt-2">
-            {normalizedSeats.map((seat) => (
-              <span key={seat} className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm">
-                {seat}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex justify-between items-center mb-6">
-          <p className="text-lg font-semibold">Total Amount</p>
-
-          <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-            INR {amount}
-          </p>
-        </div>
-
-        <button
-          onClick={handlePayment}
-          disabled={loading}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? "Processing..." : "Pay Now"}
-        </button>
       </div>
     </div>
   )
 }
-
-
-
