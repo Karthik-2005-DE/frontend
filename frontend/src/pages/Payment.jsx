@@ -9,7 +9,7 @@ const getStoredPaymentState = (id) => {
   }
 
   try {
-    const rawValue = window.sessionStorage.getItem(`payment:${id}`)
+    const rawValue = window.sessionStorage.getItem(`payments:${id}`)
     return rawValue ? JSON.parse(rawValue) : null
   } catch {
     return null
