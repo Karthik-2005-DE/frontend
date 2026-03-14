@@ -52,6 +52,32 @@ export default function Users() {
 
               <td>
                 <button
+  onClick={async () => {
+
+    await api.put(`/admin/block-user/${user._id}`)
+
+    setUsers(prev =>
+      prev.map(u =>
+        u._id === user._id
+          ? { ...u, isBlocked: !u.isBlocked }
+          : u
+      )
+    )
+
+  }}
+
+  className={`px-3 py-1 rounded ${
+    user.isBlocked
+      ? "bg-green-500 text-white"
+      : "bg-red-500 text-white"
+  }`}
+>
+
+  {user.isBlocked ? "Unblock" : "Block"}
+
+</button>
+
+                <button
                   onClick={()=>deleteUser(user._id)}
                   className="bg-red-500 text-white px-3 py-1 rounded"
                 >
